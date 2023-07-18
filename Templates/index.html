@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Flask App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.7.0.js" integrity="sha256-JlqSTELeR4TLqP0OG9dxM7yDPqX1ox/HfgiSLBj8+kM=" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    
+
+
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-6">
+          <div id="chart1_div"></div>
+        </div>
+        <div class="col-lg-6">
+          <div id="chart2_div"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-lg-6">
+          <div id="chart3_div"></div>
+        </div>
+        <div class="col-lg-6">
+          <div id="chart4_div"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-lg-12">
+          <div id="chart5_div"></div>
+        </div>
+      </div>
+    </div>
+  
+    <script>
+      // Load the Google Charts library
+      google.charts.load('current', { 'packages': ['corechart'] });
+      google.charts.setOnLoadCallback(fetchData);
+  
+      function fetchData() {
+        // Fetch the JSON data
+        fetch('http://127.0.0.1:8080/graph')
+          .then(response => response.text())
+          .then(result => {
+            // Replace NaN values with null
+            const cleanedResult = result.replace(/NaN/g, "null");
+            const data = JSON.parse(cleanedResult);
+            drawCharts(data);
+          })
+          .catch(error => console.log('Error:', error));
+      }
+  
+      function drawCharts(data) {
+        // Sort data by population in descending order
+        const sortedData = data.sort((a, b) => b.population - a.population);
+  
+        // Filter top 10 countries by population
+        const top10Data = sortedData.slice(0, 10);
+  
+        // Draw chart 1: Population by Country (Top 10)
+        drawChart(top10Data, 'chart1_div', 'Population by Country (Top 10)', 'population');
+  
+        // Draw chart 2: Area by Country (Top 10)
+        const top10ByAreaData = sortedData
+          .filter(item => item.area !== null)
+          .sort((a, b) => b.area - a.area)
+          .slice(0, 10);
+        drawChart(top10ByAreaData, 'chart2_div', 'Area by Country (Top 10)', 'area');
+  
+        // Draw chart 3: Population Density by Country (Top 10) - Scatter Chart
+        const densityData = sortedData
+          .filter(item => item.population !== null && item.area !== null)
+          .map(item => ({
+            country: item['name.common'],
+            density: item.population / item.area
+          }))
+          .sort((a, b) => b.density - a.density)
+          .slice(0, 10);
+        drawScatterChart(densityData, 'chart3_div', 'Population Density by Country (Top 10)');
+  
+        // Draw chart 4: Independent vs Non-Independent Countries by Continent
+        const independentData = countByVariable(data, 'continents', 'independent', 1);
+        const nonIndependentData = countByVariable(data, 'continents', 'independent', 0);
+        drawDualAxisChart(independentData, nonIndependentData, 'chart4_div',
+          'Independent vs Non-Independent Countries by Continent', 'Independent Countries', 'Non-Independent Countries');
+  
+        // Draw chart 5: UN Member vs Non-Member Countries by Continent - Pie Chart
+        const unMemberData = countByVariable(data, 'continents', 'unMember', 1);
+        const nonMemberData = countByVariable(data, 'continents', 'unMember', 0);
+        drawPieChart(unMemberData, nonMemberData, 'chart5_div', 'UN Member vs Non-Member Countries by Continent');
+      }
+  
+      function drawChart(data, containerId, title, valueKey) {
+        // Create the data table
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn('string', 'Country');
+        dataTable.addColumn('number', 'Value');
+  
+        // Add data rows
+        data.forEach(item => {
+          const country = item['name.common'];
+          const value = item[valueKey];
+          dataTable.addRow([{ v: country, f: country }, value]);
+        });
+  
+        // Set chart options
+        const options = {
+          title: title,
+          width: '100%',
+          height: 300,
+          legend: 'none', // Hide legend
+          hAxis: {
+            title: 'Country',
+            slantedText: true,
+            slantedTextAngle: 45,
+            textStyle: {
+              fontSize: 10, // Decrease font size
+            },
+          },
+        };
+  
+        // Instantiate and draw the chart
+        const chart = new google.visualization.ColumnChart(document.getElementById(containerId));
+        chart.draw(dataTable, options);
+      }
+  
+      function drawScatterChart(data, containerId, title) {
+        // Create the data table
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn('number', 'Index');
+        dataTable.addColumn('number', 'Density');
+        dataTable.addColumn({ type: 'string', role: 'tooltip' });
+  
+        // Add data rows
+        data.forEach((item, index) => {
+          const country = item['country'];
+          const density = item['density'];
+          dataTable.addRow([index + 1, density, country]);
+        });
+  
+        // Set chart options
+        const options = {
+          title: title,
+          width: '100%',
+          height: 300,
+          legend: { position: 'top', maxLines: 10 },
+          hAxis: {
+            title: 'Index',
+          },
+          vAxis: {
+            title: 'Density',
+          },
+        };
+  
+        // Instantiate and draw the chart
+        const chart = new google.visualization.ScatterChart(document.getElementById(containerId));
+        chart.draw(dataTable, options);
+      }
+  
+      function drawDualAxisChart(data1, data2, containerId, title, series1Label, series2Label) {
+        // Create the data table
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn('string', 'Continent');
+        dataTable.addColumn('number', series1Label);
+        dataTable.addColumn('number', series2Label);
+  
+        // Add data rows
+        const continents = Object.keys(data1);
+        continents.forEach(continent => {
+          dataTable.addRow([
+            continent,
+            data1[continent],
+            data2[continent]
+          ]);
+        });
+  
+        // Set chart options
+        const options = {
+          title: title,
+          width: '100%',
+          height: 300,
+          legend: { position: 'top' },
+          series: {
+            0: { targetAxisIndex: 0 },
+            1: { targetAxisIndex: 1 }
+          },
+          vAxes: {
+            0: { title: series1Label },
+            1: { title: series2Label }
+          }
+        };
+  
+        // Instantiate and draw the chart
+        const chart = new google.visualization.ColumnChart(document.getElementById(containerId));
+        chart.draw(dataTable, options);
+      }
+  
+      function drawPieChart(data1, data2, containerId, title) {
+        // Create the data table
+        const dataTable = new google.visualization.DataTable();
+        dataTable.addColumn('string', 'Continent');
+        dataTable.addColumn('number', 'Count');
+  
+        // Add data rows
+        const continents = Object.keys(data1);
+        continents.forEach(continent => {
+          dataTable.addRow([
+            continent,
+            data1[continent] + data2[continent]
+          ]);
+        });
+  
+        // Set chart options
+        const options = {
+          title: title,
+          width: '100%',
+          height: 300,
+          legend: { position: 'top' },
+        };
+  
+        // Instantiate and draw the chart
+        const chart = new google.visualization.PieChart(document.getElementById(containerId));
+        chart.draw(dataTable, options);
+      }
+  
+      function countByVariable(data, variableKey, countKey, targetValue) {
+        const countData = {};
+        data.forEach(item => {
+          const variable = item[variableKey];
+          const count = item[countKey];
+          if (!countData[variable]) {
+            countData[variable] = 0;
+          }
+          if (count === targetValue) {
+            countData[variable]++;
+          }
+        });
+        return countData;
+      }
+    </script>
+  </body>
+</html>
