@@ -20,14 +20,11 @@ def index():
 
 @app.route('/graph')
 def graph():
-    #REAL_DOMAIN = request.headers['Host']
+
     conn = sqlite3.connect('test.db')
 
-    df = pd.read_sql_query('SELECT * FROM countries', conn) # transformar el df a dict
+    df = pd.read_sql_query('SELECT * FROM countries', conn) # transform df into dict
     df_dict = df.to_dict('records')
-    #json_data = json.dumps(df_dict)
-    
-    #plt.savefig(<ruta><nombre>) ('Static/figura') sin png
 
     conn.close()
     return jsonify(df_dict)
