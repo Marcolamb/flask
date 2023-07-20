@@ -44,7 +44,7 @@
   
       function fetchData() {
         // Fetch the JSON data
-        fetch('http://127.0.0.1:8080/graph')
+        fetch('https://flask-marco-abbad1177ba4.herokuapp.com/graph')
           .then(response => response.text())
           .then(result => {
             // Replace NaN values with null
